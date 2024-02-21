@@ -33,9 +33,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.TestName;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
 
 @Category({ RegionServerTests.class, MediumTests.class })
 public class TestWALCompressionZstd extends CompressedWALTestBase {
+
+  private static final Logger LOG = LoggerFactory.getLogger(TestWALCompressionZstd.class);
 
   @ClassRule
   public static final HBaseClassTestRule CLASS_RULE =
@@ -62,8 +70,43 @@ public class TestWALCompressionZstd extends CompressedWALTestBase {
 
   @Test
   public void test() throws Exception {
-    TableName tableName = TableName.valueOf(name.getMethodName().replaceAll("[^a-zA-Z0-9]", "_"));
-    doTest(tableName);
+    int good = 0;
+    int bad = 300_000;
+
+    TreeMap<Integer, Optional<Throwable>> results = new TreeMap<>();
+    while (true) {
+      int next = (good + bad) / 2;
+      if (results.containsKey(next)) {
+        LOG.info("DONE");
+        break;
+      }
+
+      Optional<Throwable> result = run(next);
+      results.put(next, result);
+
+      if (result.isEmpty()) {
+        good = next;
+      } else {
+        bad = next;
+      }
+    }
+
+
+    results.forEach((k, v) -> LOG.info("{}: {}", k, v.isEmpty() ? "OK" : "Failed + " + v.get().getMessage()));
+
+  }
+
+  private Optional<Throwable> run(int size) {
+    LOG.info("Testing {}", size);
+    try {
+      TableName tableName = TableName.valueOf(name.getMethodName().replaceAll("[^a-zA-Z0-9]", "_") + "_" + size);
+      doTest(tableName, size);
+      LOG.info("  ok");
+      return Optional.empty();
+    } catch (Throwable e) {
+      LOG.info("  failed!");
+      return Optional.of(e);
+    }
   }
 
 }

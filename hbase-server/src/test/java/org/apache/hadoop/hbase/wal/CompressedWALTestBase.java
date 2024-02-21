@@ -21,11 +21,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CellBuilderFactory;
@@ -68,13 +68,23 @@ public class CompressedWALTestBase {
   }
 
   public void doTest(TableName tableName) throws Exception {
+    doTest(tableName, 1000);
+  }
+  public void doTest(TableName tableName, int valueSize) throws Exception {
     NavigableMap<byte[], Integer> scopes = new TreeMap<>(Bytes.BYTES_COMPARATOR);
     scopes.put(tableName.getName(), 0);
     RegionInfo regionInfo = RegionInfoBuilder.newBuilder(tableName).build();
     final int total = 1000;
     final byte[] row = Bytes.toBytes("row");
     final byte[] family = Bytes.toBytes("family");
-    final byte[] value = VALUE;
+    final byte[] value = new byte[valueSize];
+
+    int offset = 0;
+    while (offset + VALUE.length < value.length) {
+      System.arraycopy(VALUE, 0, value, offset, VALUE.length);
+      offset += VALUE.length;
+    }
+
     final WALFactory wals =
       new WALFactory(TEST_UTIL.getConfiguration(), tableName.getNameAsString());
 
